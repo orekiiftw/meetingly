@@ -39,19 +39,54 @@ Browser ◀── JSON MoM ──────┘
 
 ### 1. Backend
 
+Copy env and set keys first:
+
 ```bash
 cd backend
-cp .env.example .env
-# Edit .env and set GEMINI_API_KEY=...
-
-# Option A — helper script (uses uv if present)
-./run.sh
-
-# Option B — manual
-# python -m venv .venv && source .venv/bin/activate
-# pip install -r requirements.txt
-# uvicorn main:app --reload --port 8000
+# Windows:  copy .env.example .env
+# macOS/Linux:  cp .env.example .env
 ```
+
+Edit `.env` and set `GEMINI_API_KEY` (and preferably `JWT_SECRET`).
+
+**Windows (PowerShell or Command Prompt)** — do **not** use `./run.sh`:
+
+```powershell
+cd backend
+.\run.ps1
+# or:
+.\run.bat
+```
+
+If PowerShell blocks scripts:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run.ps1
+```
+
+**macOS / Linux / Git Bash / WSL:**
+
+```bash
+cd backend
+./run.sh
+```
+
+**Manual (any OS):**
+
+```bash
+cd backend
+python -m venv .venv
+
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+# source .venv/bin/activate
+
+pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Also install [ffmpeg](https://ffmpeg.org/) and ensure it is on your `PATH` (on Windows, restart the terminal after install).
 
 Health check: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
 
