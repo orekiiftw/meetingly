@@ -252,7 +252,7 @@ def _wait_until_file_active(
     client: genai.Client,
     uploaded: types.File,
     *,
-    timeout_s: float = 120.0,
+    timeout_s: float = 45.0,
     poll_s: float = 1.0,
 ) -> types.File:
     """Poll Gemini File API until the upload is ACTIVE (or fail)."""
@@ -281,20 +281,51 @@ def _wait_until_file_active(
         current = client.files.get(name=name)
 
 
-def generate_mom_from_audio(audio_path: Path) -> dict[str, Any]:
-    """Upload audio to Gemini File API, generate structured MoM, then delete the remote file."""
-    if not GEMINI_API_KEY:
-        raise HTTPException(
-            status_code=500,
-            detail="GEMINI_API_KEY is not configured on the server.",
-        )
+INLINE_DATA_LIMIT = 20 * 1024 * 1024  # 20 MB — Gemini inline-data ceiling
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    mime = _guess_audio_mime(audio_path)
+
+def _generate_mom_inline(client: genai.Client, audio_path: Path, mime: str) -> dict[str, Any]:
+    """Send audio bytes inline in the generate_content call (no File API round-trips)."""
+    audio_bytes = audio_path.read_bytes()
+    logger.info(
+        "Sending audio inline to Gemini (%s, %s bytes, model=%s)",
+        mime, len(audio_bytes), GEMINI_MODEL,
+    )
+
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_bytes(
+                        data=audio_bytes,
+                        mime_type=mime,
+                    ),
+                    types.Part.from_text(
+                        text=(
+                            "Analyze this meeting recording and produce complete "
+                            "Minutes of Meeting according to the schema."
+                        )
+                    ),
+                ],
+            )
+        ],
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            response_mime_type="application/json",
+            response_schema=MeetingMoM,
+            temperature=0.2,
+        ),
+    )
+    return response
+
+
+def _generate_mom_file_api(client: genai.Client, audio_path: Path, mime: str) -> dict[str, Any]:
+    """Upload via Gemini File API, poll until ACTIVE, then generate. Used for large files."""
     uploaded = None
-
     try:
-        logger.info("Uploading audio to Gemini (%s, %s bytes)", mime, audio_path.stat().st_size)
+        logger.info("Uploading audio to Gemini File API (%s, %s bytes)", mime, audio_path.stat().st_size)
         uploaded = client.files.upload(
             file=str(audio_path),
             config=types.UploadFileConfig(mime_type=mime),
@@ -330,6 +361,38 @@ def generate_mom_from_audio(audio_path: Path) -> dict[str, Any]:
                 temperature=0.2,
             ),
         )
+        return response
+    finally:
+        # Stateless: always remove the remote file when possible
+        if uploaded is not None:
+            try:
+                client.files.delete(name=uploaded.name)
+                logger.info("Deleted remote Gemini file %s", uploaded.name)
+            except Exception:
+                logger.warning("Could not delete remote Gemini file", exc_info=True)
+
+
+def generate_mom_from_audio(audio_path: Path) -> dict[str, Any]:
+    """Generate structured MoM from an audio file via Gemini.
+
+    Uses inline data for files ≤ 20 MB (single round-trip, ideal for serverless)
+    and falls back to the File API for larger files.
+    """
+    if not GEMINI_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="GEMINI_API_KEY is not configured on the server.",
+        )
+
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    mime = _guess_audio_mime(audio_path)
+    file_size = audio_path.stat().st_size
+
+    try:
+        if file_size <= INLINE_DATA_LIMIT:
+            response = _generate_mom_inline(client, audio_path, mime)
+        else:
+            response = _generate_mom_file_api(client, audio_path, mime)
 
         raw = response.text
         if not raw:
@@ -360,14 +423,7 @@ def generate_mom_from_audio(audio_path: Path) -> dict[str, Any]:
             status_code=status,
             detail=f"Gemini processing failed: {message}",
         ) from exc
-    finally:
-        # Stateless: always remove the remote file when possible
-        if uploaded is not None:
-            try:
-                client.files.delete(name=uploaded.name)
-                logger.info("Deleted remote Gemini file %s", uploaded.name)
-            except Exception:
-                logger.warning("Could not delete remote Gemini file", exc_info=True)
+
 
 
 # ── Routes ──────────────────────────────────────────────────────────────────
