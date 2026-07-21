@@ -54,6 +54,11 @@ export async function apiFetch(
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`)
   }
+
+  // Resolve base URL for production hosted APIs
+  const apiBase = import.meta.env.VITE_API_URL || ""
+  const url = input.startsWith("/api/") ? `${apiBase}${input}` : input
+
   // Don't force Content-Type for FormData — browser sets boundary
-  return fetch(input, { ...init, headers })
+  return fetch(url, { ...init, headers })
 }

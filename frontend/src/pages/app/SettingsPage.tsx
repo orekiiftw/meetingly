@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { CheckCircle2, CircleAlert, Loader2, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth"
+import { apiFetch } from "@/lib/api"
 
 interface Health {
   status: string
@@ -20,7 +21,7 @@ export function SettingsPage() {
   const load = () => {
     setLoading(true)
     setError(null)
-    fetch("/api/health")
+    apiFetch("/api/health")
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return (await r.json()) as Health

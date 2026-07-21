@@ -162,14 +162,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS origins
+CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+env_origins = os.getenv("CORS_ALLOWED_ORIGINS")
+if env_origins:
+    CORS_ORIGINS.extend([origin.strip() for origin in env_origins.split(",") if origin.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -217,6 +223,15 @@ def extract_audio_to_temp(video_path: Path, work_dir: Path) -> Path:
             .overwrite_output()
             .run(capture_stdout=True, capture_stderr=True, quiet=True)
         )
+    except FileNotFoundError as exc:
+        logger.error("ffmpeg executable not found: %s", exc)
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Video processing requires ffmpeg, which is not available on this server environment. "
+                "Please upload an audio file (MP3, WAV, M4A, etc.) directly."
+            ),
+        ) from exc
     except ffmpeg.Error as exc:
         stderr = exc.stderr.decode("utf-8", errors="replace") if exc.stderr else str(exc)
         logger.error("ffmpeg failed: %s", stderr)

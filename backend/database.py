@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "data" / "meetingly.db"
+# Use /tmp on Vercel or a custom path if provided, otherwise local database folder
+DB_PATH_str = os.getenv("DATABASE_PATH")
+if DB_PATH_str:
+    DB_PATH = Path(DB_PATH_str)
+elif os.getenv("VERCEL"):
+    DB_PATH = Path("/tmp/meetingly.db")
+else:
+    DB_PATH = Path(__file__).resolve().parent / "data" / "meetingly.db"
 
 _lock = threading.Lock()
 

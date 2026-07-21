@@ -13,6 +13,7 @@ import {
 import { Logo } from "@/components/Logo"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth"
+import { apiFetch } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const SIDEBAR = [
@@ -34,7 +35,7 @@ export function AppLayout() {
 
   useEffect(() => {
     let cancelled = false
-    fetch("/api/health")
+    apiFetch("/api/health")
       .then((r) => r.json())
       .then((d) => {
         if (!cancelled) setApiOk(d?.status === "ok")

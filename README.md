@@ -203,6 +203,32 @@ meetingly/
 └── README.md
 ```
 
+## Vercel Deployment
+
+You can host **Meetingly** on Vercel via two primary architectures:
+
+### Option A: Host Entire Project on Vercel (All-in-One)
+This hosts both the React frontend and the Python FastAPI backend directly on Vercel as serverless functions.
+
+1. **Import to Vercel**: Connect your GitHub repository to Vercel. Keep the **Root Directory** as the root of the repository (`/`).
+2. **Set Environment Variables**: In Vercel, add the following variables:
+   - `GEMINI_API_KEY`: Your Google AI Studio API key.
+   - `JWT_SECRET`: A long random string for auth tokens.
+3. **Key Considerations on Vercel**:
+   - **Database Persistence**: SQLite database writes are directed to `/tmp/meetingly.db` which is ephemeral. User accounts will reset periodically.
+   - **Video Uploads**: Vercel Serverless Functions do not support the system binary `ffmpeg`. Uploading video files will gracefully notify users to upload audio files instead. Audio uploads (MP3, WAV, M4A, etc.) work perfectly because they bypass `ffmpeg` and are sent directly to Gemini.
+
+---
+
+### Option B: Frontend on Vercel + Backend on Render/Railway (Full Feature Support)
+This allows full database persistence and video processing with `ffmpeg`.
+
+1. **Deploy Backend**: Deploy the `backend` directory to Render, Railway, or Fly.io (which have `ffmpeg` and disk persistence).
+   - Set env variables: `GEMINI_API_KEY`, `JWT_SECRET`.
+   - Set `CORS_ALLOWED_ORIGINS` to your Vercel frontend URL (e.g., `https://meetingly.vercel.app`).
+2. **Deploy Frontend on Vercel**: Import the repository and set the **Root Directory** to `frontend`.
+   - Set env variable: `VITE_API_URL` to your deployed backend URL (e.g., `https://meetingly-api.railway.app`).
+
 ## Notes
 
 - Max upload size: **100 MB** (adjust `MAX_UPLOAD_BYTES` in `main.py` if needed).
